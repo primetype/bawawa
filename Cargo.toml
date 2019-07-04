@@ -1,0 +1,21 @@
+[package]
+name = "bawawa"
+version = "0.1.0"
+authors = ["Nicolas Di Prima <nicolas@primetype.co.uk>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/primetype/bawawa"
+homepage = "https://github.com/primetype/bawawa#README.md"
+keywords = [ "process", "future" ]
+categories = ["asynchronous"]
+description = """
+Opinionated set of tools to manage and compose process executions
+"""
+
+[dependencies]
+error-chain = "0.12"
+futures = "0.1"
+tokio-codec = "0.1"
+tokio-io = "0.1"
+tokio-process = "0.2"
