@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/bawawa.svg?maxAge=2592000)](https://crates.io/crates/bawawa)
 
-[Documentation](https://docs.rs/bawawa)
+[Documentation](https://docs.rs/crate/bawawa)
 
 ## Usage
 
