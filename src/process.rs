@@ -141,7 +141,7 @@ mod test {
         Ok(())
     }
 
-    fn send_and_check<'a, 'b, P, I>(process: P, item: I) -> Result<P>
+    fn send_and_check<P, I>(process: P, item: I) -> Result<P>
     where
         P: Stream<Item = I, Error = Error> + Sink<SinkItem = I, SinkError = Error>,
         I: std::fmt::Debug + Clone + PartialEq + Eq,
