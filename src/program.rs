@@ -85,14 +85,9 @@ mod test {
 
         const PROGRAM_NAME: &str = "sh";
 
-        match Program::new(PROGRAM_NAME.to_owned()) {
-            Err(error) => {
-                eprintln!("{}", error.display_chain().to_string());
-                panic!("The program does not seem to exist, we are expected it to");
-            }
-            Ok(_) => {
-                // success
-            }
+        if let Err(error) = Program::new(PROGRAM_NAME.to_owned()) {
+            eprintln!("{}", error.display_chain().to_string());
+            panic!("The program does not seem to exist, we are expected it to");
         }
     }
 
