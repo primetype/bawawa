@@ -3,7 +3,6 @@ use crate::{
     StandardOutput,
 };
 use futures::prelude::*;
-use tokio_codec::{Encoder, FramedWrite};
 use tokio_process::{ChildStderr, ChildStdin, ChildStdout, CommandExt as _};
 
 /// a `Process` object to monitor the execution of a [`Command`].
@@ -39,7 +38,6 @@ impl Process {
 }
 
 impl Control for Process {
-
     #[inline]
     fn command(&self) -> &Command {
         &self.command
@@ -62,20 +60,17 @@ impl Control for Process {
     }
 }
 
-impl<Item> StandardInput<Item> for Process {
+impl<'a> StandardInput<'a> for Process {
     #[inline]
-    fn standard_input<E>(&mut self, encoder: E) -> FramedWrite<&mut ChildStdin, E>
-    where
-        E: Encoder<Item = Item>,
-    {
+    fn standard_input(&mut self) -> &mut ChildStdin {
         match self.process.stdin() {
             None => unreachable!(),
-            Some(stdin) => FramedWrite::new(stdin, encoder),
+            Some(stdin) => stdin,
         }
     }
 }
 
-impl<'a, Item> StandardOutput<'a, Item> for Process {
+impl<'a> StandardOutput<'a> for Process {
     #[inline]
     fn standard_output(&mut self) -> &mut ChildStdout {
         match self.process.stdout() {
@@ -85,7 +80,7 @@ impl<'a, Item> StandardOutput<'a, Item> for Process {
     }
 }
 
-impl<'a, Item> StandardError<'a, Item> for Process {
+impl<'a> StandardError<'a> for Process {
     #[inline]
     fn standard_error(&mut self) -> &mut ChildStderr {
         match self.process.stderr() {
@@ -113,27 +108,25 @@ mod test {
     use crate::Program;
     use tokio_codec::LinesCodec;
 
-    #[cfg(unix)]
     #[test]
     fn echo_stdout() -> Result<()> {
-        const STRING: &'static str = "Hello World!";
-
-        let mut cmd = Command::new(Program::new("echo".to_owned())?);
-        cmd.arguments(&[STRING]);
+        let mut cmd = Command::new(Program::new("rustc".to_owned())?);
+        cmd.arguments(&["--version"]);
 
         let mut captured = Process::spawn(cmd)?
             .capture_stdout(LinesCodec::new())
             .wait();
 
-        assert_eq!(captured.next().unwrap()?, STRING.to_owned());
+        let rustc_version: String = captured.next().unwrap()?;
+
+        assert!(rustc_version.starts_with("rustc"));
 
         Ok(())
     }
 
-    #[cfg(unix)]
     #[test]
     fn cat_stdin_stderr() -> Result<()> {
-        let mut cmd = Command::new(Program::new("cat".to_owned())?);
+        let mut cmd = Command::new(Program::new("rustc".to_owned())?);
         cmd.arguments(&["file-that-does-not-exist"]);
 
         let mut captured = Process::spawn(cmd)?
@@ -142,31 +135,44 @@ mod test {
 
         assert_eq!(
             captured.next().unwrap()?,
-            "cat: file-that-does-not-exist: No such file or directory".to_owned()
+            "error: couldn\'t read file-that-does-not-exist: No such file or directory (os error 2)",
         );
+
+        Ok(())
+    }
+
+    fn send_and_check<'a, 'b, P, I>(process: P, item: I) -> Result<P>
+    where
+        P: Stream<Item = I, Error = Error> + Sink<SinkItem = I, SinkError = Error>,
+        I: std::fmt::Debug + Clone + PartialEq + Eq,
+    {
+        let process = process.send(item.clone()).wait()?;
+        let mut captured = Stream::wait(process);
+
+        assert_eq!(captured.next().unwrap()?, item);
+
+        Ok(captured.into_inner())
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows__stdin_stdout() -> Result<()> {
+        // TODO: write a test to check standard input capture on windows
 
         Ok(())
     }
 
     #[cfg(unix)]
     #[test]
-    fn cat_stdin_stdout() -> Result<()> {
-        const STRING: &'static str = "Hello\nWorld!";
-
+    fn unix_cat_stdin_stdout() -> Result<()> {
         let cmd = Command::new(Program::new("cat".to_owned())?);
 
-        let mut process = Process::spawn(cmd)?;
+        let process = Process::spawn(cmd)?
+            .capture_stdout(LinesCodec::new())
+            .send_stdin(LinesCodec::new());
 
-        process
-            .standard_input(LinesCodec::new())
-            .send(STRING.to_owned())
-            .wait()
-            .chain_err(|| "cannot write to stdin")?;
-
-        let mut captured = process.capture_stdout(LinesCodec::new()).wait();
-
-        assert_eq!(captured.next().unwrap()?, "Hello".to_owned());
-        assert_eq!(captured.next().unwrap()?, "World!".to_owned());
+        let process = send_and_check(process, "Hello World!".to_owned())?;
+        let _process = send_and_check(process, "Bawawa".to_owned())?;
 
         Ok(())
     }

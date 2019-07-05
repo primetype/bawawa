@@ -67,7 +67,8 @@ println!("spawned command: '{}' (PID: {})", process.command(), process.id());
 ```
 
 We provide functions to capture the standard output and standard error output
-utilising the [`StandardOutput::capture_stdout`] or [`StandardError::capture_stderr`].
+utilising the [`StandardOutput::capture_stdout`] or [`StandardError::capture_stderr`]
+and to send items to the standard inputs with [`StandardInput::send_stdin`].
 
 ```
 # use bawawa::{Command, Control, StandardOutput, Process, Program, Error};
@@ -98,6 +99,7 @@ println!("compiler: {}", capture_stdout.next().unwrap()?);
 [`Control`]: ./trait.Control.html
 [`StandardOutput::capture_stdout`]: ./trait.StandardOutput.html#method.capture_stdout
 [`StandardError::capture_stderr`]: ./trait.StandardError.html#method.capture_stderr
+[`StandardInput::send_stdin`]: ./trait.StandardInput.html#method.send_stdin
 */
 
 #[macro_use(error_chain)]
@@ -108,12 +110,14 @@ mod command;
 mod control;
 mod process;
 mod program;
+mod send_stdin;
 
 pub use self::capture::Capture;
 pub use self::command::Command;
 pub use self::control::*;
 pub use self::process::Process;
 pub use self::program::Program;
+pub use self::send_stdin::SendStdin;
 
 error_chain! {
     foreign_links {
@@ -143,6 +147,10 @@ error_chain! {
 
         Capture {
             description("error in `capture`")
+        }
+
+        SendStdin {
+            description("error in `send_stdin`")
         }
     }
 }

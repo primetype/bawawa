@@ -1,9 +1,11 @@
-use crate::{Command, Control, Error, ErrorKind, ResultExt, StandardError, StandardOutput};
+use crate::{
+    Command, Control, Error, ErrorKind, ResultExt, StandardError, StandardInput, StandardOutput,
+};
 use futures::prelude::*;
 use std::marker::PhantomData;
 use tokio_codec::{Decoder, FramedRead};
 use tokio_io::AsyncRead;
-use tokio_process::{ChildStderr, ChildStdout};
+use tokio_process::{ChildStderr, ChildStdin, ChildStdout};
 
 /// capture the standard output or standard error output from
 /// a running process
@@ -94,7 +96,7 @@ where
 
 impl<'a, C, D, Item> Capture<'a, C, D, ChildStdout, Item>
 where
-    C: Control + StandardOutput<'a, Item> + 'a,
+    C: Control + StandardOutput<'a> + 'a,
     D: Decoder<Item = Item>,
 {
     pub(super) fn new_stdout(command: C, decoder: D) -> Self {
@@ -110,14 +112,13 @@ where
                 framed_read,
                 _item: PhantomData,
             }
-
         }
     }
 }
 
 impl<'a, C, D, Item> Capture<'a, C, D, ChildStderr, Item>
 where
-    C: Control + StandardError<'a, Item> + 'a,
+    C: Control + StandardError<'a> + 'a,
     D: Decoder<Item = Item>,
 {
     pub(super) fn new_stderr(command: C, decoder: D) -> Self {
@@ -132,7 +133,6 @@ where
                 framed_read,
                 _item: PhantomData,
             }
-
         }
     }
 }
@@ -158,9 +158,9 @@ where
     }
 }
 
-impl<'a, C, D, Item> StandardOutput<'a, Item> for Capture<'a, C, D, ChildStderr, Item>
+impl<'a, C, D, Item> StandardOutput<'a> for Capture<'a, C, D, ChildStderr, Item>
 where
-    C: StandardOutput<'a, Item>,
+    C: StandardOutput<'a>,
     D: 'a,
     Item: 'a,
 {
@@ -170,15 +170,28 @@ where
     }
 }
 
-impl<'a, C, D, Item> StandardError<'a, Item> for Capture<'a, C, D, ChildStdout, Item>
+impl<'a, C, D, Item> StandardError<'a> for Capture<'a, C, D, ChildStdout, Item>
 where
-    C: StandardError<'a, Item>,
+    C: StandardError<'a>,
     D: 'a,
     Item: 'a,
 {
     #[inline]
     fn standard_error(&mut self) -> &mut ChildStderr {
         unsafe { (*self.command).standard_error() }
+    }
+}
+
+impl<'a, C, D, R, Item> StandardInput<'a> for Capture<'a, C, D, R, Item>
+where
+    R: AsyncRead,
+    C: StandardInput<'a>,
+    D: 'a,
+    Item: 'a,
+{
+    #[inline]
+    fn standard_input(&mut self) -> &mut ChildStdin {
+        unsafe { (*self.command).standard_input() }
     }
 }
 
@@ -212,5 +225,20 @@ where
     #[inline]
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         self.framed_read.poll().chain_err(|| ErrorKind::Capture)
+    }
+}
+
+impl<'a, C, D, R, Item> Sink for Capture<'a, C, D, R, Item>
+where
+    C: Sink,
+    R: AsyncRead,
+{
+    type SinkItem = <C as Sink>::SinkItem;
+    type SinkError = <C as Sink>::SinkError;
+    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        unsafe { (*self.command).start_send(item) }
+    }
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        unsafe { (*self.command).poll_complete() }
     }
 }
