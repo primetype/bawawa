@@ -83,7 +83,7 @@ mod test {
     fn program_exists() {
         use crate::error_chain::ChainedError as _;
 
-        const PROGRAM_NAME: &'static str = "sh";
+        const PROGRAM_NAME: &str = "sh";
 
         match Program::new(PROGRAM_NAME.to_owned()) {
             Err(error) => {
@@ -100,7 +100,7 @@ mod test {
     fn program_does_not_exists() {
         use crate::error_chain::ChainedError as _;
 
-        const PROGRAM_NAME: &'static str = "the-impossible-program-that-does-not-exist";
+        const PROGRAM_NAME: &str = "the-impossible-program-that-does-not-exist";
 
         let error = Program::new(PROGRAM_NAME.to_owned()).expect_err("program should not exist");
 
