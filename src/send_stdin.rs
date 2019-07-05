@@ -2,7 +2,7 @@ use crate::{
     Command, Control, Error, ErrorKind, ResultExt, StandardError, StandardInput, StandardOutput,
 };
 use futures::prelude::*;
-use std::marker::PhantomData;
+use std::{marker::PhantomData, mem::ManuallyDrop};
 use tokio_codec::{Encoder, FramedWrite};
 use tokio_process::{ChildStderr, ChildStdin, ChildStdout};
 
@@ -16,7 +16,7 @@ pub struct SendStdin<'a, C, E, Item> {
     /// framed writer, with a reference to the ChildStdin from the
     /// `command`. This is why we use a raw pointer in this object
     /// so we can have a reference to this object too.
-    framed_write: FramedWrite<&'a mut ChildStdin, E>,
+    framed_write: ManuallyDrop<FramedWrite<&'a mut ChildStdin, E>>,
     _item: PhantomData<Item>,
 }
 
@@ -31,7 +31,7 @@ where
             // safely. And will be deleted later on the `Drop` call
             let ptr = Box::into_raw(Box::new(command));
             let stdout = (*ptr).standard_input();
-            let framed_write = FramedWrite::new(stdout, encoder);
+            let framed_write = ManuallyDrop::new(FramedWrite::new(stdout, encoder));
             SendStdin {
                 command: ptr,
                 framed_write,
@@ -71,9 +71,14 @@ impl<'a, C, E, Item> Drop for SendStdin<'a, C, E, Item> {
         // we only created it via Box temporarily in order
         // to safely create the pointer on the heap and to safely
         // free it from the heap.
-        let _boxed = unsafe { Box::from_raw(self.command) };
+        let boxed = unsafe { Box::from_raw(self.command) };
+
+        unsafe {
+            ManuallyDrop::drop(&mut self.framed_write);
+        }
 
         // the `Box` is then freed and deleted from memory
+        std::mem::drop(boxed);
     }
 }
 

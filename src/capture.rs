@@ -2,7 +2,7 @@ use crate::{
     Command, Control, Error, ErrorKind, ResultExt, StandardError, StandardInput, StandardOutput,
 };
 use futures::prelude::*;
-use std::marker::PhantomData;
+use std::{marker::PhantomData, mem::ManuallyDrop};
 use tokio_codec::{Decoder, FramedRead};
 use tokio_io::AsyncRead;
 use tokio_process::{ChildStderr, ChildStdin, ChildStdout};
@@ -90,7 +90,7 @@ where
     /// framed reader, with a reference to the AsyncRead R from the
     /// `command`. This is why we use a raw pointer in this object
     /// so we can have a reference to this object too.
-    framed_read: FramedRead<&'a mut R, D>,
+    framed_read: ManuallyDrop<FramedRead<&'a mut R, D>>,
     _item: PhantomData<Item>,
 }
 
@@ -105,7 +105,7 @@ where
             // safely. And will be deleted later on the `Drop` call
             let ptr = Box::into_raw(Box::new(command));
             let stdout = (*ptr).standard_output();
-            let framed_read = FramedRead::new(stdout, decoder);
+            let framed_read = ManuallyDrop::new(FramedRead::new(stdout, decoder));
 
             Capture {
                 command: ptr,
@@ -127,7 +127,7 @@ where
             // safely. And will be deleted later on the `Drop` call
             let ptr = Box::into_raw(Box::new(command));
             let stderr = (*ptr).standard_error();
-            let framed_read = FramedRead::new(stderr, decoder);
+            let framed_read = ManuallyDrop::new(FramedRead::new(stderr, decoder));
             Capture {
                 command: ptr,
                 framed_read,
@@ -208,9 +208,14 @@ where
         // we only created it via Box temporarily in order
         // to safely create the pointer on the heap and to safely
         // free it from the heap.
-        let _boxed = unsafe { Box::from_raw(self.command) };
+        let boxed = unsafe { Box::from_raw(self.command) };
+
+        unsafe {
+            ManuallyDrop::drop(&mut self.framed_read);
+        }
 
         // the `Box` is then freed and deleted from memory
+        std::mem::drop(boxed);
     }
 }
 
