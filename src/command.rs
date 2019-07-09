@@ -25,8 +25,18 @@ impl Command {
 
     /// set the working directory: the directory in which the command
     /// will be executed.
+    #[inline]
     pub fn current_working_directory(&mut self, cwd: PathBuf) -> &mut Self {
         self.current_working_directory = Some(cwd);
+        self
+    }
+
+    /// set argument to the command
+    pub fn argument<S>(&mut self, argument: S) -> &mut Self
+    where
+        S: AsRef<str>,
+    {
+        self.arguments.push(argument.as_ref().to_owned());
         self
     }
 
