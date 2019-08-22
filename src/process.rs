@@ -35,6 +35,18 @@ impl Process {
             .chain_err(|| ErrorKind::CannotSpawnCommand(command.clone()))?;
         Ok(Process { command, process })
     }
+
+    pub fn stdin(&mut self) -> &mut Option<ChildStdin> {
+        self.process.stdin()
+    }
+
+    pub fn stdout(&mut self) -> &mut Option<ChildStdout> {
+        self.process.stdout()
+    }
+
+    pub fn stderr(&mut self) -> &mut Option<ChildStderr> {
+        self.process.stderr()
+    }
 }
 
 impl Control for Process {
